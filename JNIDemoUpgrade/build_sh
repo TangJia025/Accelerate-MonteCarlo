@@ -1,0 +1,10 @@
+javac MonteCarloDemo.java
+javah -jni MonteCarloDemo
+icpc -c -g -O3 -no-offload -fimf-precision=low -fimf-domain-exclusion=31 -fimf-accuracy-bits=11 -no-prec-div -no-prec-sqrt -fno-alias -vec-report2 -opt-threads-per-core=4 $1 -o Driver.o Driver.cpp
+icpc -c -g -O3 -no-offload -fimf-precision=low -fimf-domain-exclusion=31 -fimf-accuracy-bits=11 -no-prec-div -no-prec-sqrt -fno-alias -vec-report2 -opt-threads-per-core=4 -fpic -openmp $1 -o MonteCarlo.o MonteCarlo.cpp
+icc -shared -fpic -o nativeMonteCarlo.o -I/usr/lib/jvm/java-1.6.0/include -I/usr/lib/jvm/java-1.6.0/include/linux nativeMonteCarlo.c
+icpc -shared -o libMonteCarloHost.so  MonteCarlo.o 
+icpc -shared -o libmontecarlo.so  nativeMonteCarlo.o MonteCarlo.o -liomp5
+icpc Driver.o -lMonteCarloHost -o MonteCarlo -L. -lpthread -liomp5
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:.
+java -Xss16M -Djava.library.path=. -DOFFLOAD_INIT=on_start MonteCarloDemo 

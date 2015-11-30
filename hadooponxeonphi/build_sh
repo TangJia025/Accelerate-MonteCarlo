@@ -1,0 +1,41 @@
+#!/bin/sh
+
+# For no OFFLOAD, please call with -no-offload
+source /opt/intel/bin/compilervars.sh intel64
+
+rm -rf bin
+mkdir bin
+###build java###
+rm -rf target
+
+mkdir -p target/classes
+
+javac -cp `hadoop classpath` demo/src/main/java/com/intel/demo/Driver.java demo/src/main/java/com/intel/demo/MonteCarloMapper.java demo/src/main/java/com/intel/demo/MonteCarloReducer.java -d target/classes
+
+CURDIR=`pwd`
+cd target/classes
+
+jar cf demo.jar com/intel/demo/Driver.class com/intel/demo/MonteCarloMapper.class com/intel/demo/MonteCarloReducer.class
+
+cd $CURDIR
+
+mv target/classes/demo.jar ./bin
+
+###build native###
+rm -rf out
+mkdir -p out
+
+icpc -c -g -O3 -fimf-precision=low -fimf-domain-exclusion=31 -fimf-accuracy-bits=11 -no-prec-div -no-prec-sqrt -fno-alias -vec-report2 -opt-threads-per-core=4 $1 -o out/Driver.o Driver.cpp
+
+icpc -c -g -O3 -fimf-precision=low -fimf-domain-exclusion=31 -fimf-accuracy-bits=11 -no-prec-div -no-prec-sqrt -fno-alias -vec-report2 -opt-threads-per-core=4 -fpic -openmp $1 -o out/MonteCarlo.o MonteCarlo.cpp
+
+icc -c -fpic -o out/com_intel_demo_MonteCarloMapper.o -I/usr/java/latest/include -I/usr/java/latest/include/linux com_intel_demo_MonteCarloMapper.c
+
+icpc -shared -o bin/libMonteCarlo.so  out/MonteCarlo.o
+
+icpc out/Driver.o -lMonteCarlo -o bin/MonteCarlo -L. -L./bin -lpthread -liomp5
+
+icpc -shared -o bin/libMonteCarloMapper.so  out/com_intel_demo_MonteCarloMapper.o out/MonteCarlo.o -lpthread -liomp5
+
+rm -rf target
+rm -rf out
